@@ -8,6 +8,8 @@ import net.minecraft.init.Blocks;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BlocksConfig implements ModuleStateProvider, Sanitizable {
 
@@ -16,12 +18,19 @@ public class BlocksConfig implements ModuleStateProvider, Sanitizable {
     @GsonSkip
     private volatile Map<Block, BlockEspConfig> map;
 
+    @GsonSkip
+    private volatile Map<Block, List<BlockEspConfig>> configsMap;
+
     public ImmutableList<BlockEspConfig> getBlockConfigs() {
         return configs;
     }
 
     public Map<Block, BlockEspConfig> getMap() {
         return map;
+    }
+
+    public Map<Block, List<BlockEspConfig>> getConfigsMap() {
+        return configsMap;
     }
 
     @Override
@@ -60,12 +69,15 @@ public class BlocksConfig implements ModuleStateProvider, Sanitizable {
 
     public void updateBlockConfigs(ImmutableList<BlockEspConfig> configs) {
         Map<Block, BlockEspConfig> map = rebuildMap(configs);
+        Map<Block, List<BlockEspConfig>> configsMap = rebuildConfigsMap(configs);
         this.configs = configs;
         this.map = map;
+        this.configsMap = configsMap;
     }
 
     public void refreshMap() {
         map = rebuildMap(configs);
+        configsMap = rebuildConfigsMap(configs);
     }
 
     private Map<Block, BlockEspConfig> rebuildMap(ImmutableList<BlockEspConfig> configs) {
@@ -73,6 +85,16 @@ public class BlocksConfig implements ModuleStateProvider, Sanitizable {
         for (BlockEspConfig config: configs) {
             for (Block block: config.blocks) {
                 map.put(block, config);
+            }
+        }
+        return map;
+    }
+
+    private Map<Block, List<BlockEspConfig>> rebuildConfigsMap(ImmutableList<BlockEspConfig> configs) {
+        Map<Block, List<BlockEspConfig>> map = new HashMap<>();
+        for (BlockEspConfig config : configs) {
+            for (Block block : config.blocks) {
+                map.computeIfAbsent(block, b -> new ArrayList<>()).add(config);
             }
         }
         return map;
