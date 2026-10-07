@@ -108,19 +108,20 @@ public class BlockEventsProcessor {
     private void onChunkLoaded(Chunk chunk) {
         capturedChunks.put(chunk.getPos(), Boolean.FALSE);
 
-        synchronized (collectionsLock) {
-            ChunkScanTaskGroup group = getOrCreateChunkTaskGroup(chunk.getPos());
-            group.markForScanAll();
-        }
+        // Scan the actual loaded chunk immediately. The queued ChunkLoaded path
+        // can be missed by heavily modified 1.12.2 client loops, so chunk loads
+        // must not depend on the custom task-group handoff.
+        SnapshotChunk snapshot = SnapshotChunk.from(chunk);
+        executor.execute(() -> BlockFinder.instance.scanChunkForAllBlocks(snapshot));
     }
 
     // main thread
     private void onChunkUnloaded(Chunk chunk) {
         capturedChunks.remove(chunk.getPos());
 
-        // no need to update queue, since task group for uploaded chunk will not do anything
-        ChunkPos pos = chunk.getPos();
-        executor.execute(() -> Events.ChunkUnloaded.trigger(pos));
+        // Remove positions synchronously so an unload cannot be queued behind
+        // a later reload scan and accidentally erase the freshly rescanned data.
+        Events.ChunkUnloaded.trigger(chunk.getPos());
     }
 
     // main thread
