@@ -28,20 +28,19 @@ public class BlockFinder {
     }
 
     public void addConfig(BlockEspConfig config) {
-        BlockEventsProcessor.instance.getExecutor().execute(() -> {
-            blocks.put(config, ConcurrentHashMap.newKeySet());
-            BlockEventsProcessor.instance.requestScan(config);
-        });
+        // The config is already installed in BlocksConfig when this is called.
+        // Publish its result set immediately so the scan request cannot race ahead
+        // of the config becoming visible to the renderer.
+        blocks.put(config, ConcurrentHashMap.newKeySet());
+        BlockEventsProcessor.instance.requestScan(config);
     }
 
     public void applyConfigs(ImmutableList<BlockEspConfig> configs) {
-        BlockEventsProcessor.instance.getExecutor().execute(() -> {
-            blocks.clear();
-            for (BlockEspConfig config : configs) {
-                blocks.put(config, ConcurrentHashMap.newKeySet());
-            }
-            BlockEventsProcessor.instance.requestFullScan();
-        });
+        blocks.clear();
+        for (BlockEspConfig config : configs) {
+            blocks.put(config, ConcurrentHashMap.newKeySet());
+        }
+        BlockEventsProcessor.instance.requestFullScan();
     }
 
     public void removeConfig(BlockEspConfig config) {
@@ -55,10 +54,8 @@ public class BlockFinder {
     }
 
     public void rescan() {
-        BlockEventsProcessor.instance.getExecutor().execute(() -> {
-            clearPositions();
-            BlockEventsProcessor.instance.requestFullScan();
-        });
+        clearPositions();
+        BlockEventsProcessor.instance.requestFullScan();
     }
 
     private void onChunkLoaded(SnapshotChunk chunk) {
