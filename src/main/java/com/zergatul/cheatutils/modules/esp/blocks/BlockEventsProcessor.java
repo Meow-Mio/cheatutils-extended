@@ -153,15 +153,11 @@ public class BlockEventsProcessor {
             entry.setValue(Boolean.FALSE);
         }
 
-        Long2ObjectMap<Chunk> chunks = getRawChunks();
-        for (Chunk chunk : chunks.values()) {
-            // A chunk can become visible through the client chunk provider without
-            // the normal load event being observed by this processor. Treat a newly
-            // discovered chunk as a real load and queue a full scan so Block ESP
-            // cannot silently miss chunks in heavily modded environments.
-            if (capturedChunks.put(chunk.getPos(), Boolean.TRUE) == null) {
+        ChunkPos[] positions = getLoadedChunksPosition();
+        for (ChunkPos pos : positions) {
+            if (capturedChunks.put(pos, Boolean.TRUE) == null) {
                 synchronized (collectionsLock) {
-                    ChunkScanTaskGroup group = getOrCreateChunkTaskGroup(chunk.getPos());
+                    ChunkScanTaskGroup group = getOrCreateChunkTaskGroup(pos);
                     group.markForScanAll();
                 }
             }
