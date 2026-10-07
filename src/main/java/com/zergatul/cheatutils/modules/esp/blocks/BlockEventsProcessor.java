@@ -148,7 +148,7 @@ public class BlockEventsProcessor {
         // when Snapshot chunk gets created and sent to executor right before level unload occurs
         executor.execute(BlockFinder.instance::clearPositions);
 
-        for (ChunkPos pos : capturedChunks.keySet()) {
+        for (ChunkPos pos : capturedChunks) {
             executor.execute(() -> Events.ChunkUnloaded.trigger(pos));
         }
         capturedChunks.clear();
