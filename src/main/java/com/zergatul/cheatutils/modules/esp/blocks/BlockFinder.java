@@ -24,7 +24,7 @@ public class BlockFinder {
     private BlockFinder() {
         Events.ChunkLoaded.add(this::onChunkLoaded);
         Events.ChunkUnloaded.add(this::onChunkUnloaded);
-        Events.BlockUpdated.add(this::onBlockUpdated);
+        Events.RawBlockUpdated.add(this::onBlockUpdated);
     }
 
     public void addConfig(BlockEspConfig config) {
