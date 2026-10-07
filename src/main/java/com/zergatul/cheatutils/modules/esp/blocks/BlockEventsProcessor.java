@@ -36,7 +36,7 @@ public class BlockEventsProcessor {
     // This map tracks loaded chunks, and every tick we recheck all loaded chunks, if some chunks disappear,
     // we trigger unload event for them.
     // Accessed only from main thread.
-    private final Map<ChunkPos, Boolean> capturedChunks = new HashMap<>();
+    private final Set<ChunkPos> capturedChunks = new HashSet<>();
 
     private BlockEventsProcessor() {
         Events.RawChunkLoaded.add(this::onChunkLoaded);
@@ -106,10 +106,9 @@ public class BlockEventsProcessor {
 
     // main thread
     private void onChunkLoaded(Chunk chunk) {
-        // Do not snapshot here. On heavily modified 1.12.2 clients the raw
-        // load callback can happen before the chunk's block data is fully
-        // populated. Mark it for the frame-end scanner instead.
-        capturedChunks.put(chunk.getPos(), Boolean.FALSE);
+        // The frame-end poller below owns chunk discovery. Do not snapshot from
+        // the raw callback because some 1.12.2 clients fire it before the
+        // received chunk data is fully populated.
     }
 
     // main thread
@@ -162,17 +161,24 @@ public class BlockEventsProcessor {
 
     // main thread
     private void processCapturedChunks() {
-        for (Map.Entry<ChunkPos, Boolean> entry : capturedChunks.entrySet()) {
-            entry.setValue(Boolean.FALSE);
-        }
-
+        /*
+         * Do not use a tri-state "captured" map here. The reliable source of
+         * truth on VintageFix/E2E is getLoadedChunk(), polled from the client
+         * thread. We compare the complete currently-loaded set with the set
+         * seen on the previous frame:
+         *
+         *   absent -> present : newly loaded, scan it
+         *   present -> absent : unloaded, keep ESP positions but forget it
+         *   present -> present : already scanned, do nothing
+         *
+         * This also works when RawChunkLoaded/RawChunkUnloaded callbacks are
+         * missing or arrive in an unexpected order.
+         */
         ChunkPos[] positions = getLoadedChunksPosition();
-        for (ChunkPos pos : positions) {
-            // FALSE means the chunk was just observed/loaded this frame.
-            // null means it was not previously tracked at all. Both cases
-            // require a scan; TRUE means it was already scanned this cycle.
-            Boolean wasLoaded = capturedChunks.put(pos, Boolean.TRUE);
-            if (wasLoaded != Boolean.TRUE) {
+        Set<ChunkPos> currentlyLoaded = new HashSet<>(Arrays.asList(positions));
+
+        for (ChunkPos pos : currentlyLoaded) {
+            if (!capturedChunks.contains(pos)) {
                 Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
                 if (chunk != null) {
                     SnapshotChunk snapshot = SnapshotChunk.from(chunk);
@@ -181,15 +187,8 @@ public class BlockEventsProcessor {
             }
         }
 
-        // Forget chunks that are no longer loaded from the lifecycle tracker,
-        // but deliberately do not emit ChunkUnloaded here. ESP positions are
-        // retained until that chunk is loaded again and refreshed.
-        Iterator<Map.Entry<ChunkPos, Boolean>> iterator = capturedChunks.entrySet().iterator();
-        while (iterator.hasNext()) {
-            if (iterator.next().getValue() == Boolean.FALSE) {
-                iterator.remove();
-            }
-        }
+        capturedChunks.retainAll(currentlyLoaded);
+        capturedChunks.addAll(currentlyLoaded);
     }
 
     // main thread
