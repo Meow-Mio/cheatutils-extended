@@ -186,13 +186,13 @@ public class BlockEventsProcessor {
             }
         }
 
+        // Forget chunks that are no longer loaded from the lifecycle tracker,
+        // but deliberately do not emit ChunkUnloaded here. ESP positions are
+        // retained until that chunk is loaded again and refreshed.
         Iterator<Map.Entry<ChunkPos, Boolean>> iterator = capturedChunks.entrySet().iterator();
         while (iterator.hasNext()) {
-            Map.Entry<ChunkPos, Boolean> entry = iterator.next();
-            if (entry.getValue() == Boolean.FALSE) {
-                ChunkPos pos = entry.getKey();
+            if (iterator.next().getValue() == Boolean.FALSE) {
                 iterator.remove();
-                executor.execute(() -> Events.ChunkUnloaded.trigger(pos));
             }
         }
     }
