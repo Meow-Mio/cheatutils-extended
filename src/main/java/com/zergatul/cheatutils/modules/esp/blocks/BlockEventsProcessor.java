@@ -262,13 +262,29 @@ public class BlockEventsProcessor {
 
     // main thread
     private ChunkPos[] getLoadedChunksPosition() {
-        Long2ObjectMap<Chunk> chunks = getRawChunks();
-        ChunkPos[] result = new ChunkPos[chunks.size()];
-        int index = 0;
-        for (Chunk chunk : chunks.values()) {
-            result[index++] = chunk.getPos();
+        /*
+         * Do not enumerate ChunkProviderClient.loadedChunks here.
+         * VintageFix's chunk_access mixin changes ChunkProviderClient internals,
+         * so our private-field accessor can disagree with getLoadedChunk().
+         */
+        if (mc.world == null || mc.player == null) {
+            return new ChunkPos[0];
         }
-        return result;
+
+        int centerX = mc.player.chunkCoordX;
+        int centerZ = mc.player.chunkCoordZ;
+        int radius = Math.max(2, mc.gameSettings.renderDistanceChunks + 2);
+
+        ArrayList<ChunkPos> result = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                if (mc.world.getChunkProvider().getLoadedChunk(centerX + dx, centerZ + dz) != null) {
+                    result.add(new ChunkPos(centerX + dx, centerZ + dz));
+                }
+            }
+        }
+
+        return result.toArray(new ChunkPos[0]);
     }
 
     private static class ChunkQueue {
