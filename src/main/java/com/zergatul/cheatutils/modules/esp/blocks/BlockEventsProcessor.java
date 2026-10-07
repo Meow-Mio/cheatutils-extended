@@ -106,7 +106,7 @@ public class BlockEventsProcessor {
 
     // main thread
     private void onChunkLoaded(Chunk chunk) {
-        capturedChunks.put(chunk.getPos(), Boolean.FALSE);
+        capturedChunks.put(chunk.getPos(), Boolean.TRUE);
 
         // Scan the actual loaded chunk immediately. The queued ChunkLoaded path
         // can be missed by heavily modified 1.12.2 client loops, so chunk loads
