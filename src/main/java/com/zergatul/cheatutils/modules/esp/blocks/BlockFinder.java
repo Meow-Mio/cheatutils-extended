@@ -100,7 +100,11 @@ public class BlockFinder {
             return;
         }
 
-        ImmutableList<Block> blockTypes = config.blocks;
+        Set<Block> blockTypes = new HashSet<>();
+        for (Block block : config.blocks) {
+            blockTypes.add(block);
+        }
+
         int xc = chunk.getPos().x << 4;
         int zc = chunk.getPos().z << 4;
         for (int x = 0; x < 16; x++) {
@@ -109,11 +113,8 @@ public class BlockFinder {
                 int zw = zc | z;
                 for (int y = 0; y < 256; y++) {
                     IBlockState state = chunk.getBlockState(x, y, z);
-                    Block block = state.getBlock();
-                    for (int i = 0; i < blockTypes.size(); i++) {
-                        if (block == blockTypes.get(i)) {
-                            set.add(new BlockPos(xw, y, zw));
-                        }
+                    if (blockTypes.contains(state.getBlock())) {
+                        set.add(new BlockPos(xw, y, zw));
                     }
                 }
             }
