@@ -140,6 +140,7 @@ public class ConfigStore {
                     ScriptRuntimeFailureHandler.instance.reportCompilationFailure(new ScriptRef(ScriptType.KEYBINDING, toggleEspName), diagnostics);
                 }
                 //KeyBindings.instance.getKeyMappingByIndex(0).setKey(InputConstants.getKey("key.keyboard.backslash"));
+                KeyBindings.INSTANCE.getKeyMappingByIndex(0).setKeyCode(Keyboard.KEY_F7);
                 KeyBindings.INSTANCE.assign(0, toggleEspName);
             } catch (Throwable e) {
                 ScriptRuntimeFailureHandler.instance.reportInitializationFailure(new ScriptRef(ScriptType.KEYBINDING, toggleEspName), e);
