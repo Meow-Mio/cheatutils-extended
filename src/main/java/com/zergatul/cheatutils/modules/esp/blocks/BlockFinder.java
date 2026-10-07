@@ -63,11 +63,20 @@ public class BlockFinder {
     }
 
     private void onChunkUnloaded(ChunkPos pos) {
-        final int cx = pos.x;
-        final int cz = pos.z;
+        // Do not discard discovered positions when a client chunk unloads.
+        // The chunk is rescanned and its positions are refreshed when it
+        // becomes loaded again.
+    }
+
+    public void refreshChunk(SnapshotChunk chunk) {
+        final int cx = chunk.getPos().x;
+        final int cz = chunk.getPos().z;
+
         for (Set<BlockPos> set : blocks.values()) {
             set.removeIf(p -> (p.getX() >> 4) == cx && (p.getZ() >> 4) == cz);
         }
+
+        scanChunkForAllBlocks(chunk);
     }
 
     private void onBlockUpdated(BlockUpdateEvent event) {
