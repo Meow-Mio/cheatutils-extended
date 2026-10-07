@@ -30,7 +30,7 @@ public class BlockFinder {
     public void addConfig(BlockEspConfig config) {
         BlockEventsProcessor.instance.getExecutor().execute(() -> {
             blocks.put(config, ConcurrentHashMap.newKeySet());
-            scan(config);
+            BlockEventsProcessor.instance.requestScan(config);
         });
     }
 
@@ -40,7 +40,7 @@ public class BlockFinder {
             for (BlockEspConfig config : configs) {
                 blocks.put(config, ConcurrentHashMap.newKeySet());
             }
-            scanAll();
+            BlockEventsProcessor.instance.requestFullScan();
         });
     }
 
