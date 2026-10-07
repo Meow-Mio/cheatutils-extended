@@ -1,21 +1,17 @@
 package com.zergatul.cheatutils.common.events;
 
-import com.zergatul.cheatutils.mixins.accessors.ChunkAccessor;
-import com.zergatul.cheatutils.modules.esp.blocks.SectionBlockStates;
+import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.init.Blocks;
 import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.chunk.BlockStateContainer;
 import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.chunk.storage.ExtendedBlockStorage;
 
 public class SnapshotChunk {
 
-    //private final Dimension dimension;
     private final ChunkPos pos;
-    private final SectionBlockStates[] sections;
+    private final Block[][] sections;
 
-    private SnapshotChunk(/*Dimension dimension, */ChunkPos pos, SectionBlockStates[] sections) {
-        //this.dimension = dimension;
+    private SnapshotChunk(ChunkPos pos, Block[][] sections) {
         this.pos = pos;
         this.sections = sections;
     }
@@ -25,32 +21,48 @@ public class SnapshotChunk {
     }
 
     public IBlockState getBlockState(int x, int y, int z) {
-        return sections[y >> 4].get(x, y & 0x0F, z);
+        Block block = sections[y >> 4][((y & 0x0F) << 8) | (z << 4) | x];
+        return block == null ? Blocks.AIR.getDefaultState() : block.getDefaultState();
     }
 
-    /*public Dimension getDimension() {
-        return dimension;
-    }*/
-
+    /**
+     * Make a thread-safe snapshot of the block types in a chunk.
+     *
+     * VintageFix replaces/optimizes several of vanilla's chunk-access and
+     * BlockStateContainer internals. Reading those internals through
+     * mixin accessors made the ESP scanner see empty sections in E2E.
+     *
+     * Chunk#getBlockState is the stable Forge/Minecraft API and is also the
+     * path used by VintageFix's optimized chunk access, so capture the block
+     * types through that API while we are still on the main client thread.
+     *
+     * BlockFinder only needs the block type, not block properties, so storing
+     * Block references is sufficient and considerably smaller than copying
+     * complete IBlockState objects.
+     */
     public static SnapshotChunk from(Chunk chunk) {
-        // we just copy references for all objects since they are immutable
-        // except LevelChunkSection.storageArrays
-        ChunkAccessor accessor = (ChunkAccessor) chunk;
-        SectionBlockStates[] sections = copySections(chunk.getBlockStorageArray());
-        //Dimension dimension = Dimension.get((ClientLevel) chunk.getLevel());
-        return new SnapshotChunk(/*dimension,*/ chunk.getPos(), sections);
-    }
+        Block[][] sections = new Block[16][];
+        for (int sectionY = 0; sectionY < 16; sectionY++) {
+            Block[] section = new Block[16 * 16 * 16];
+            int baseY = sectionY << 4;
 
-    private static SectionBlockStates[] copySections(ExtendedBlockStorage[] source) {
-        SectionBlockStates[] destination = new SectionBlockStates[source.length];
-        for (int i = 0; i < source.length; i++) {
-            ExtendedBlockStorage section = source[i];
-            if (section != null) {
-                destination[i] = SectionBlockStates.from(source[i].getData());
-            } else {
-                destination[i] = SectionBlockStates.EMPTY;
+            for (int y = 0; y < 16; y++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int x = 0; x < 16; x++) {
+                        IBlockState state = chunk.getBlockState(
+                                new net.minecraft.util.math.BlockPos(
+                                        (chunk.x << 4) + x,
+                                        baseY + y,
+                                        (chunk.z << 4) + z));
+                        section[(y << 8) | (z << 4) | x] =
+                                state == null ? Blocks.AIR : state.getBlock();
+                    }
+                }
             }
+
+            sections[sectionY] = section;
         }
-        return destination;
+
+        return new SnapshotChunk(chunk.getPos(), sections);
     }
 }
