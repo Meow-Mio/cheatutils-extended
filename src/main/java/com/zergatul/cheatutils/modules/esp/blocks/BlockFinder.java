@@ -132,7 +132,7 @@ public class BlockFinder {
             }
         }
     }
-    private void scanChunkForAllBlocks(SnapshotChunk chunk) {
+    public void scanChunkForAllBlocks(SnapshotChunk chunk) {
         int xc = chunk.getPos().x << 4;
         int zc = chunk.getPos().z << 4;
         Map<Block, List<BlockEspConfig>> map = ConfigStore.instance.getConfig().blocks.getConfigsMap();
