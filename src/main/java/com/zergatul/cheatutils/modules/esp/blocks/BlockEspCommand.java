@@ -4,6 +4,8 @@ import com.zergatul.cheatutils.collections.ImmutableList;
 import com.zergatul.cheatutils.configs.BlockEspConfig;
 import com.zergatul.cheatutils.configs.BlocksConfig;
 import com.zergatul.cheatutils.configs.ConfigStore;
+import com.zergatul.cheatutils.modules.esp.EspGlobal;
+import com.zergatul.cheatutils.modules.esp.BlockEsp;
 import net.minecraft.block.Block;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
@@ -53,6 +55,7 @@ public class BlockEspCommand extends CommandBase {
 
         if (action.equals("on") || action.equals("off")) {
             boolean enabled = action.equals("on");
+            EspGlobal.enabled = enabled;
             for (BlockEspConfig config : blocks.getBlockConfigs()) config.enabled = enabled;
             ConfigStore.instance.requestWrite();
             sendChat(sender, "Block ESP " + (enabled ? "enabled" : "disabled") + ".");
@@ -114,6 +117,29 @@ public class BlockEspCommand extends CommandBase {
             for (BlockEspConfig config : copy) blocks.remove(config);
             ConfigStore.instance.requestWrite();
             sendChat(sender, "Cleared Block ESP.");
+            return;
+        }
+
+        if (action.equals("rescan")) {
+            BlockFinder.instance.rescan();
+            sendChat(sender, "Block ESP rescan requested.");
+            return;
+        }
+
+        if (action.equals("status")) {
+            int total = 0;
+            int enabled = 0;
+            for (BlockEspConfig config : blocks.getBlockConfigs()) {
+                Set<BlockPos> found = BlockFinder.instance.blocks.get(config);
+                int count = found == null ? 0 : found.size();
+                total += count;
+                if (config.enabled) enabled++;
+                sendChat(sender, "ESP #" + enabled + ": found=" + count + " enabled=" + config.enabled
+                        + " boxes=" + config.drawBoundingBox + " tracers=" + config.drawTracers
+                        + " overlay=" + config.drawOverlay + " range=" + config.maxDistance);
+            }
+            sendChat(sender, "Global ESP=" + EspGlobal.enabled + " | configs=" + blocks.getBlockConfigs().size()
+                    + " | enabled configs=" + enabled + " | found positions=" + total);
             return;
         }
 
@@ -189,6 +215,8 @@ public class BlockEspCommand extends CommandBase {
             result.add("boxes");
             result.add("overlay");
             result.add("list");
+            result.add("status");
+            result.add("rescan");
             return getListOfStringsMatchingLastWord(args, result);
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("tracers") || args[0].equalsIgnoreCase("boxes") || args[0].equalsIgnoreCase("overlay"))) {
