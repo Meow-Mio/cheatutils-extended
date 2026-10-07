@@ -57,7 +57,7 @@ public class BlockFinder {
     public void rescan() {
         BlockEventsProcessor.instance.getExecutor().execute(() -> {
             clearPositions();
-            scanAll();
+            BlockEventsProcessor.instance.requestFullScan();
         });
     }
 
