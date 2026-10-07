@@ -106,22 +106,17 @@ public class BlockEventsProcessor {
 
     // main thread
     private void onChunkLoaded(Chunk chunk) {
-        capturedChunks.put(chunk.getPos(), Boolean.TRUE);
-
-        // Scan the actual loaded chunk immediately. The queued ChunkLoaded path
-        // can be missed by heavily modified 1.12.2 client loops, so chunk loads
-        // must not depend on the custom task-group handoff.
-        SnapshotChunk snapshot = SnapshotChunk.from(chunk);
-        executor.execute(() -> BlockFinder.instance.scanChunkForAllBlocks(snapshot));
+        // Do not snapshot here. On heavily modified 1.12.2 clients the raw
+        // load callback can happen before the chunk's block data is fully
+        // populated. Mark it for the frame-end scanner instead.
+        capturedChunks.put(chunk.getPos(), Boolean.FALSE);
     }
 
     // main thread
     private void onChunkUnloaded(Chunk chunk) {
+        // Removing a chunk from the lifecycle tracker is enough. ESP positions
+        // are intentionally retained until the chunk is loaded and refreshed.
         capturedChunks.remove(chunk.getPos());
-
-        // Remove positions synchronously so an unload cannot be queued behind
-        // a later reload scan and accidentally erase the freshly rescanned data.
-        Events.ChunkUnloaded.trigger(chunk.getPos());
     }
 
     // main thread
@@ -181,7 +176,7 @@ public class BlockEventsProcessor {
                 Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
                 if (chunk != null) {
                     SnapshotChunk snapshot = SnapshotChunk.from(chunk);
-                    executor.execute(() -> BlockFinder.instance.scanChunkForAllBlocks(snapshot));
+                    executor.execute(() -> BlockFinder.instance.refreshChunk(snapshot));
                 }
             }
         }
