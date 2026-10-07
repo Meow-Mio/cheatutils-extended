@@ -24,7 +24,12 @@ public class RenderWorldLastEvent {
     private RenderWorldLastEvent(float partialTicks, Matrix4f projection, Matrix4f modelView) {
         this.partialTicks = partialTicks;
         Minecraft mc = Minecraft.getMinecraft();
-        this.playerPos = new Vec3d(mc.player.posX, mc.player.posY, mc.player.posZ);
+        // Use the same interpolation as the render camera so ESP distance culling
+        // does not jump between tick positions at high frame rates.
+        this.playerPos = new Vec3d(
+                mc.player.lastTickPosX + (mc.player.posX - mc.player.lastTickPosX) * partialTicks,
+                mc.player.lastTickPosY + (mc.player.posY - mc.player.lastTickPosY) * partialTicks,
+                mc.player.lastTickPosZ + (mc.player.posZ - mc.player.lastTickPosZ) * partialTicks);
         Entity camera = mc.getRenderViewEntity();
         // Vanilla's model-view already includes eye height and third-person offsets.
         this.cameraPos = new Vec3d(
