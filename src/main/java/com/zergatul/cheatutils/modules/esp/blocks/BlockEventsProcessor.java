@@ -173,9 +173,14 @@ public class BlockEventsProcessor {
         ChunkPos[] positions = getLoadedChunksPosition();
         for (ChunkPos pos : positions) {
             if (capturedChunks.put(pos, Boolean.TRUE) == null) {
-                synchronized (collectionsLock) {
-                    ChunkScanTaskGroup group = getOrCreateChunkTaskGroup(pos);
-                    group.markForScanAll();
+                // A chunk can appear without the normal RawChunkLoaded event,
+                // especially with optimized 1.12.2 chunk providers. Scan it
+                // directly from the main thread so returning to an unloaded
+                // area always rebuilds the ESP positions from the chunk data.
+                Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
+                if (chunk != null) {
+                    SnapshotChunk snapshot = SnapshotChunk.from(chunk);
+                    executor.execute(() -> BlockFinder.instance.scanChunkForAllBlocks(snapshot));
                 }
             }
         }
