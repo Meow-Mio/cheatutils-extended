@@ -4,6 +4,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.chunk.Chunk;
 
 public class SnapshotChunk {
@@ -46,14 +47,12 @@ public class SnapshotChunk {
             Block[] section = new Block[16 * 16 * 16];
             int baseY = sectionY << 4;
 
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             for (int y = 0; y < 16; y++) {
                 for (int z = 0; z < 16; z++) {
                     for (int x = 0; x < 16; x++) {
-                        IBlockState state = chunk.getBlockState(
-                                new net.minecraft.util.math.BlockPos(
-                                        (chunk.x << 4) + x,
-                                        baseY + y,
-                                        (chunk.z << 4) + z));
+                        pos.setPos((chunk.x << 4) + x, baseY + y, (chunk.z << 4) + z);
+                        IBlockState state = chunk.getBlockState(pos);
                         section[(y << 8) | (z << 4) | x] =
                                 state == null ? Blocks.AIR : state.getBlock();
                     }
