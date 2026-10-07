@@ -10,6 +10,9 @@ import net.minecraft.block.Block;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.BlockPos;
+
+import java.util.Set;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +26,7 @@ public class BlockEspCommand extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/cu_blockesp <on|off|add|remove|clear|range|tracers|boxes|overlay|list>";
+        return "/cu_blockesp <on|off|add|remove|clear|range|tracers|boxes|overlay|list|status|rescan>";
     }
 
     @Override
