@@ -3,7 +3,6 @@ package com.zergatul.cheatutils.modules.esp.blocks;
 import com.zergatul.cheatutils.common.Events;
 import com.zergatul.cheatutils.common.events.BlockUpdateEvent;
 import com.zergatul.cheatutils.common.events.SnapshotChunk;
-import com.zergatul.cheatutils.concurrent.MainLoopEndExecutor;
 import com.zergatul.cheatutils.concurrent.ProfilerSingleThreadExecutor;
 import com.zergatul.cheatutils.configs.BlockEspConfig;
 import com.zergatul.cheatutils.mixins.accessors.ChunkProviderClientAccessor;
@@ -63,27 +62,45 @@ public class BlockEventsProcessor {
 
     // any thread
     public void requestFullScan() {
-        MainLoopEndExecutor.instance.execute(() -> {
+        // Do not route initial/config scans through CheatUtils' custom frame-end
+        // executor. Some 1.12.2 optimization mods alter the client loop enough
+        // that this extra hand-off can be missed. Minecraft's own scheduled-task
+        // queue is the reliable main-thread boundary.
+        mc.addScheduledTask(() -> {
+            if (mc.world == null || mc.player == null) {
+                return;
+            }
+
             ChunkPos[] positions = getLoadedChunksPosition();
-            executor.execute(() -> {
-                for (ChunkPos pos : positions) {
-                    ChunkScanTaskGroup group = getOrCreateChunkTaskGroup(pos);
-                    group.markForScanAll();
+            for (ChunkPos pos : positions) {
+                Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
+                if (chunk == null) {
+                    continue;
                 }
-            });
+
+                SnapshotChunk snapshot = SnapshotChunk.from(chunk);
+                executor.execute(() -> BlockFinder.instance.scanChunkForAllBlocks(snapshot));
+            }
         });
     }
 
     // any thread
     public void requestScan(BlockEspConfig config) {
-        MainLoopEndExecutor.instance.execute(() -> {
+        mc.addScheduledTask(() -> {
+            if (mc.world == null || mc.player == null) {
+                return;
+            }
+
             ChunkPos[] positions = getLoadedChunksPosition();
-            executor.execute(() -> {
-                for (ChunkPos pos : positions) {
-                    ChunkScanTaskGroup group = getOrCreateChunkTaskGroup(pos);
-                    group.markForScan(config);
+            for (ChunkPos pos : positions) {
+                Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
+                if (chunk == null) {
+                    continue;
                 }
-            });
+
+                SnapshotChunk snapshot = SnapshotChunk.from(chunk);
+                executor.execute(() -> BlockFinder.instance.scanChunkForBlock(snapshot, config));
+            }
         });
     }
 
