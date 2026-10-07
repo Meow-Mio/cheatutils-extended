@@ -5,7 +5,6 @@ import com.zergatul.cheatutils.configs.BlockEspConfig;
 import com.zergatul.cheatutils.configs.BlocksConfig;
 import com.zergatul.cheatutils.configs.ConfigStore;
 import com.zergatul.cheatutils.modules.esp.EspGlobal;
-import com.zergatul.cheatutils.modules.esp.BlockEsp;
 import net.minecraft.block.Block;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
@@ -88,7 +87,6 @@ public class BlockEspCommand extends CommandBase {
             config.enabled = true;
             blocks.add(config);
             ConfigStore.instance.requestWrite();
-            BlockEventsProcessor.instance.requestScan(config);
             sendChat(sender, "Added and enabled " + args[1] + ".");
             return;
         }
