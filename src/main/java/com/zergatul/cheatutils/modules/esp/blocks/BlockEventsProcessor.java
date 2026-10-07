@@ -168,11 +168,11 @@ public class BlockEventsProcessor {
 
         ChunkPos[] positions = getLoadedChunksPosition();
         for (ChunkPos pos : positions) {
-            if (capturedChunks.put(pos, Boolean.TRUE) == null) {
-                // A chunk can appear without the normal RawChunkLoaded event,
-                // especially with optimized 1.12.2 chunk providers. Scan it
-                // directly from the main thread so returning to an unloaded
-                // area always rebuilds the ESP positions from the chunk data.
+            // FALSE means the chunk was just observed/loaded this frame.
+            // null means it was not previously tracked at all. Both cases
+            // require a scan; TRUE means it was already scanned this cycle.
+            Boolean wasLoaded = capturedChunks.put(pos, Boolean.TRUE);
+            if (wasLoaded != Boolean.TRUE) {
                 Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
                 if (chunk != null) {
                     SnapshotChunk snapshot = SnapshotChunk.from(chunk);
