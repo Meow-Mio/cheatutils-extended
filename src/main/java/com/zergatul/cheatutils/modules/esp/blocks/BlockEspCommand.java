@@ -162,7 +162,7 @@ public class BlockEspCommand extends CommandBase {
         return Block.REGISTRY.getObject(new ResourceLocation(id));
     }
 
-    private boolean parseBoolean(String value) {
+    private static boolean parseBoolean(String value) {
         return value.equalsIgnoreCase("on") || value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes");
     }
 
