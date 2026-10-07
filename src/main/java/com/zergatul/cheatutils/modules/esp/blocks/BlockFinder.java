@@ -62,20 +62,7 @@ public class BlockFinder {
     }
 
     private void onChunkLoaded(SnapshotChunk chunk) {
-        // need to call unload?
-        Map<Block, BlockEspConfig> map = ConfigStore.instance.getConfig().blocks.getMap();
-        int xc = chunk.getPos().x << 4;
-        int zc = chunk.getPos().z << 4;
-        for (int x = 0; x < 16; x++) {
-            int xw = xc | x;
-            for (int z = 0; z < 16; z++) {
-                int zw = zc | z;
-                for (int y = 0; y < 256; y++) {
-                    IBlockState state = chunk.getBlockState(x, y, z);
-                    checkBlock(xw, y, zw, state, map);
-                }
-            }
-        }
+        scanChunkForAllBlocks(chunk);
     }
 
     private void onChunkUnloaded(ChunkPos pos) {
@@ -91,15 +78,20 @@ public class BlockFinder {
         for (Set<BlockPos> set : blocks.values()) {
             set.remove(pos);
         }
-        checkBlock(pos.getX(), pos.getY(), pos.getZ(), event.state(), ConfigStore.instance.getConfig().blocks.getMap());
-    }
 
-    private void scan(final BlockEspConfig config) {
-        BlockEventsProcessor.instance.requestScan(config);
-    }
+        List<BlockEspConfig> configs = ConfigStore.instance.getConfig().blocks
+                .getConfigsMap()
+                .get(event.state().getBlock());
+        if (configs == null) {
+            return;
+        }
 
-    private void scanAll() {
-        BlockEventsProcessor.instance.requestFullScan();
+        for (BlockEspConfig config : configs) {
+            Set<BlockPos> set = blocks.get(config);
+            if (set != null) {
+                set.add(pos);
+            }
+        }
     }
 
     public void scanChunkForBlock(SnapshotChunk chunk, BlockEspConfig config) {
@@ -142,4 +134,36 @@ public class BlockFinder {
             }
         }
     }
+    private void scanChunkForAllBlocks(SnapshotChunk chunk) {
+        int xc = chunk.getPos().x << 4;
+        int zc = chunk.getPos().z << 4;
+        Map<Block, List<BlockEspConfig>> map = ConfigStore.instance.getConfig().blocks.getConfigsMap();
+
+        for (int x = 0; x < 16; x++) {
+            int xw = xc | x;
+            for (int z = 0; z < 16; z++) {
+                int zw = zc | z;
+                for (int y = 0; y < 256; y++) {
+                    IBlockState state = chunk.getBlockState(x, y, z);
+                    if (state.getMaterial() == Material.AIR) {
+                        continue;
+                    }
+
+                    List<BlockEspConfig> configs = map.get(state.getBlock());
+                    if (configs == null) {
+                        continue;
+                    }
+
+                    BlockPos pos = new BlockPos(xw, y, zw);
+                    for (BlockEspConfig config : configs) {
+                        Set<BlockPos> set = blocks.get(config);
+                        if (set != null) {
+                            set.add(pos);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 }
