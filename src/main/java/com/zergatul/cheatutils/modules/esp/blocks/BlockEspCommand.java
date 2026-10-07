@@ -10,6 +10,8 @@ import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.chunk.Chunk;
 
 import java.util.Set;
 
@@ -121,6 +123,41 @@ public class BlockEspCommand extends CommandBase {
             return;
         }
 
+        if (action.equals("debug")) {
+            Minecraft mc = Minecraft.getMinecraft();
+            if (mc.world == null || mc.player == null) {
+                sendChat(sender, "No world loaded.");
+                return;
+            }
+
+            int radius = 1;
+            int loaded = 0;
+            int diamond = 0;
+            for (int cx = mc.player.chunkCoordX - radius; cx <= mc.player.chunkCoordX + radius; cx++) {
+                for (int cz = mc.player.chunkCoordZ - radius; cz <= mc.player.chunkCoordZ + radius; cz++) {
+                    Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(cx, cz);
+                    if (chunk == null) {
+                        continue;
+                    }
+                    loaded++;
+                    for (int y = 0; y < 256; y++) {
+                        for (int x = 0; x < 16; x++) {
+                            for (int z = 0; z < 16; z++) {
+                                if (chunk.getBlockState(new BlockPos((cx << 4) + x, y, (cz << 4) + z))
+                                        .getBlock() == net.minecraft.init.Blocks.DIAMOND_ORE) {
+                                    diamond++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            sendChat(sender, "Direct chunk debug: loaded=" + loaded + " diamond_ore=" + diamond
+                    + " playerChunk=" + mc.player.chunkCoordX + "," + mc.player.chunkCoordZ);
+            return;
+        }
+
         if (action.equals("rescan")) {
             BlockFinder.instance.rescan();
             sendChat(sender, "Block ESP rescan requested.");
@@ -218,6 +255,7 @@ public class BlockEspCommand extends CommandBase {
             result.add("list");
             result.add("status");
             result.add("rescan");
+            result.add("debug");
             return getListOfStringsMatchingLastWord(args, result);
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("tracers") || args[0].equalsIgnoreCase("boxes") || args[0].equalsIgnoreCase("overlay"))) {
