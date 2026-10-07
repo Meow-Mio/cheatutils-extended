@@ -4,6 +4,7 @@ import com.zergatul.cheatutils.modules.esp.BlockEsp;
 import com.zergatul.cheatutils.modules.esp.EntityEsp;
 import com.zergatul.cheatutils.modules.esp.FreeCam;
 import com.zergatul.cheatutils.modules.esp.blocks.BlockEventsProcessor;
+import net.minecraftforge.client.ClientCommandHandler;
 import com.zergatul.cheatutils.modules.scripting.KeyBindings;
 import org.apache.logging.log4j.LogManager;
 
@@ -16,6 +17,7 @@ public class Modules {
         register(EntityEsp.INSTANCE);
         register(FreeCam.INSTANCE);
         register(KeyBindings.INSTANCE);
+        ClientCommandHandler.instance.registerCommand(new com.zergatul.cheatutils.modules.esp.blocks.BlockEspCommand());
     }
 
     private static void register(Object instance) {
