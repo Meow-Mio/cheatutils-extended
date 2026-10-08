@@ -43,6 +43,9 @@ public class BlockEventsProcessor {
     private long autoScanIntervalNanos = DEFAULT_AUTO_SCAN_INTERVAL_NANOS;
     private long nextAutoScanNanos = 0;
     private boolean autoScanEnabled = true;
+    private long autoScanRunCount = 0;
+    private long lastAutoScanMillis = 0;
+    private int lastAutoScanChunkCount = -1;
 
     private BlockEventsProcessor() {
         Events.RawChunkLoaded.add(this::onChunkLoaded);
@@ -224,6 +227,12 @@ public class BlockEventsProcessor {
     public double getAutoScanIntervalSeconds() {
         return autoScanIntervalNanos / 1_000_000_000.0;
     }
+
+    public long getAutoScanRunCount() { return autoScanRunCount; }
+
+    public long getLastAutoScanMillis() { return lastAutoScanMillis; }
+
+    public int getLastAutoScanChunkCount() { return lastAutoScanChunkCount; }
 
     public void removeUnloadedChunkPositions() {
         if (mc.world == null || mc.player == null) {
