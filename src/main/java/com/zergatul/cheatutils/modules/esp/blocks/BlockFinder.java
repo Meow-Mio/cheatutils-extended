@@ -76,7 +76,14 @@ public class BlockFinder {
             set.removeIf(p -> (p.getX() >> 4) == cx && (p.getZ() >> 4) == cz);
         }
 
-        scanChunkForAllBlocks(chunk);
+        // Scan each currently active config explicitly. This is the same
+        // path used by requestScan(config), and avoids relying on the shared
+        // ConfigStore block->configs map from the worker thread. In E2E/VintageFix
+        // that map-backed all-config scan was not discovering blocks in chunks
+        // that loaded after the initial scan.
+        for (BlockEspConfig config : blocks.keySet()) {
+            scanChunkForBlock(chunk, config);
+        }
     }
 
     private void onBlockUpdated(BlockUpdateEvent event) {
