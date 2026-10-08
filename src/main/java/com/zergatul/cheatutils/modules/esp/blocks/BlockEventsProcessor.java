@@ -38,6 +38,12 @@ public class BlockEventsProcessor {
     // Accessed only from main thread.
     private final Set<ChunkPos> capturedChunks = new HashSet<>();
 
+    // A client chunk can become visible through getLoadedChunk() before
+    // VintageFix/E2E has finished populating its block data. Keep newly
+    // discovered chunks pending for a few frame-end passes before taking
+    // the snapshot, so we do not permanently cache an empty/partial chunk.
+    private final Map<ChunkPos, Integer> pendingChunks = new HashMap<>();
+
     private BlockEventsProcessor() {
         Events.RawChunkLoaded.add(this::onChunkLoaded);
         Events.RawChunkUnloaded.add(this::onChunkUnloaded);
@@ -116,6 +122,7 @@ public class BlockEventsProcessor {
         // Removing a chunk from the lifecycle tracker is enough. ESP positions
         // are intentionally retained until the chunk is loaded and refreshed.
         capturedChunks.remove(chunk.getPos());
+        pendingChunks.remove(chunk.getPos());
     }
 
     // main thread
@@ -152,6 +159,7 @@ public class BlockEventsProcessor {
             executor.execute(() -> Events.ChunkUnloaded.trigger(pos));
         }
         capturedChunks.clear();
+        pendingChunks.clear();
     }
 
     // main thread
@@ -178,17 +186,35 @@ public class BlockEventsProcessor {
         Set<ChunkPos> currentlyLoaded = new HashSet<>(Arrays.asList(positions));
 
         for (ChunkPos pos : currentlyLoaded) {
-            if (!capturedChunks.contains(pos)) {
-                Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
-                if (chunk != null) {
-                    SnapshotChunk snapshot = SnapshotChunk.from(chunk);
-                    executor.execute(() -> BlockFinder.instance.refreshChunk(snapshot));
-                }
+            if (capturedChunks.contains(pos)) {
+                continue;
             }
+
+            Integer delay = pendingChunks.get(pos);
+            if (delay == null) {
+                // Give the client a few frame-end passes to finish filling the
+                // chunk before we snapshot it.
+                pendingChunks.put(pos, 5);
+                continue;
+            }
+
+            if (delay > 0) {
+                pendingChunks.put(pos, delay - 1);
+                continue;
+            }
+
+            Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
+            if (chunk != null) {
+                SnapshotChunk snapshot = SnapshotChunk.from(chunk);
+                executor.execute(() -> BlockFinder.instance.refreshChunk(snapshot));
+                capturedChunks.add(pos);
+            }
+
+            pendingChunks.remove(pos);
         }
 
         capturedChunks.retainAll(currentlyLoaded);
-        capturedChunks.addAll(currentlyLoaded);
+        pendingChunks.keySet().retainAll(currentlyLoaded);
     }
 
     // main thread
