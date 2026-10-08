@@ -21,7 +21,6 @@ public class BlockEventsProcessor {
     public static final BlockEventsProcessor instance = new BlockEventsProcessor();
     private static final long CHUNK_COPY_BUDGET_NANOS = TimeUnit.MILLISECONDS.toNanos(1);
     private static final long DEFAULT_AUTO_SCAN_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(10);
-    private static final int AUTO_SCAN_CHUNKS_PER_FRAME = 2;
 
     private final Minecraft mc = Minecraft.getMinecraft();
     private final ProfilerSingleThreadExecutor executor = new ProfilerSingleThreadExecutor(10000);
@@ -40,11 +39,7 @@ public class BlockEventsProcessor {
     // Accessed only from main thread.
     private final Set<ChunkPos> capturedChunks = new HashSet<>();
 
-    // A client chunk can become visible through getLoadedChunk() before
-    // VintageFix/E2E has finished populating its block data. Keep newly
-    // discovered chunks pending for a few frame-end passes before taking
-    // the snapshot, so we do not permanently cache an empty/partial chunk.
-    private final ArrayDeque<ChunkPos> autoScanQueue = new ArrayDeque<>();
+
     private long autoScanIntervalNanos = DEFAULT_AUTO_SCAN_INTERVAL_NANOS;
     private long nextAutoScanNanos = 0;
     private boolean autoScanEnabled = true;
@@ -165,7 +160,6 @@ public class BlockEventsProcessor {
             executor.execute(() -> Events.ChunkUnloaded.trigger(pos));
         }
         capturedChunks.clear();
-        autoScanQueue.clear();
     }
 
     // main thread
@@ -197,30 +191,22 @@ public class BlockEventsProcessor {
         }
 
         long now = System.nanoTime();
-        if (autoScanQueue.isEmpty() && now >= nextAutoScanNanos) {
-            ChunkPos[] positions = getLoadedChunksPosition();
-            autoScanQueue.addAll(Arrays.asList(positions));
-            nextAutoScanNanos = now + autoScanIntervalNanos;
+        if (now < nextAutoScanNanos) {
+            return;
         }
 
-        int processed = 0;
-        while (processed < AUTO_SCAN_CHUNKS_PER_FRAME && !autoScanQueue.isEmpty()) {
-            ChunkPos pos = autoScanQueue.pollFirst();
-            Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
-            if (chunk != null) {
-                SnapshotChunk snapshot = SnapshotChunk.from(chunk);
-                executor.execute(() -> BlockFinder.instance.refreshChunk(snapshot));
-            }
-            processed++;
-        }
+        // Auto-scan is intentionally just the existing /cu_blockesp rescan
+        // operation on a timer. This keeps manual rescan and auto-scan on the
+        // exact same code path, which is the path proven to work reliably on
+        // E2E/VintageFix.
+        BlockFinder.instance.rescan();
+        nextAutoScanNanos = now + autoScanIntervalNanos;
     }
 
     public void setAutoScanEnabled(boolean enabled) {
         autoScanEnabled = enabled;
         if (enabled) {
             nextAutoScanNanos = 0;
-        } else {
-            autoScanQueue.clear();
         }
     }
 
