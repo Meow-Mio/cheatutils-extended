@@ -27,7 +27,7 @@ public class BlockEspCommand extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/cu_blockesp <on|off|add|remove|clear|range|tracers|boxes|overlay|list|status|rescan>";
+        return "/cu_blockesp <on|off|add|remove|clear|range|tracers|boxes|overlay|autoscan|persist|list|status|rescan>";
     }
 
     @Override
@@ -158,6 +158,45 @@ public class BlockEspCommand extends CommandBase {
             return;
         }
 
+        if (action.equals("autoscan")) {
+            if (args.length < 2) {
+                sendChat(sender, "Auto-scan is " + (BlockEventsProcessor.instance.isAutoScanEnabled() ? "ON" : "OFF")
+                        + " | interval=" + BlockEventsProcessor.instance.getAutoScanIntervalSeconds() + "s");
+                return;
+            }
+            if (args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("off")) {
+                boolean enabled = parseBoolean(args[1]);
+                BlockEventsProcessor.instance.setAutoScanEnabled(enabled);
+                sendChat(sender, "Auto-scan " + (enabled ? "enabled" : "disabled") + ".");
+                return;
+            }
+            try {
+                double seconds = Double.parseDouble(args[1]);
+                if (seconds < 1 || seconds > 120) {
+                    sendChat(sender, "Auto-scan interval must be between 1 and 120 seconds.");
+                    return;
+                }
+                BlockEventsProcessor.instance.setAutoScanIntervalSeconds(seconds);
+                BlockEventsProcessor.instance.setAutoScanEnabled(true);
+                sendChat(sender, "Auto-scan enabled every " + seconds + " seconds.");
+            } catch (NumberFormatException e) {
+                sendChat(sender, "Usage: /cu_blockesp autoscan <on|off|seconds>");
+            }
+            return;
+        }
+
+        if (action.equals("persist")) {
+            if (args.length < 2) {
+                sendChat(sender, "Unloaded-chunk persistence is "
+                        + (BlockFinder.instance.isPersistUnloadedChunks() ? "ON" : "OFF") + ".");
+                return;
+            }
+            boolean enabled = parseBoolean(args[1]);
+            BlockFinder.instance.setPersistUnloadedChunks(enabled);
+            sendChat(sender, "Unloaded-chunk persistence " + (enabled ? "enabled" : "disabled") + ".");
+            return;
+        }
+
         if (action.equals("rescan")) {
             BlockFinder.instance.rescan();
             sendChat(sender, "Block ESP rescan requested.");
@@ -178,6 +217,9 @@ public class BlockEspCommand extends CommandBase {
             }
             sendChat(sender, "Global ESP=" + EspGlobal.enabled + " | configs=" + blocks.getBlockConfigs().size()
                     + " | enabled configs=" + enabled + " | found positions=" + total);
+            sendChat(sender, "Auto-scan=" + BlockEventsProcessor.instance.isAutoScanEnabled()
+                    + " interval=" + BlockEventsProcessor.instance.getAutoScanIntervalSeconds() + "s"
+                    + " | persist unloaded=" + BlockFinder.instance.isPersistUnloadedChunks());
             return;
         }
 
@@ -255,10 +297,13 @@ public class BlockEspCommand extends CommandBase {
             result.add("list");
             result.add("status");
             result.add("rescan");
+            result.add("autoscan");
+            result.add("persist");
             result.add("debug");
             return getListOfStringsMatchingLastWord(args, result);
         }
-        if (args.length == 2 && (args[0].equalsIgnoreCase("tracers") || args[0].equalsIgnoreCase("boxes") || args[0].equalsIgnoreCase("overlay"))) {
+        if (args.length == 2 && (args[0].equalsIgnoreCase("tracers") || args[0].equalsIgnoreCase("boxes") || args[0].equalsIgnoreCase("overlay")
+                || args[0].equalsIgnoreCase("autoscan") || args[0].equalsIgnoreCase("persist"))) {
             List<String> result = new ArrayList<>();
             result.add("on");
             result.add("off");
