@@ -20,6 +20,8 @@ public class BlockEventsProcessor {
 
     public static final BlockEventsProcessor instance = new BlockEventsProcessor();
     private static final long CHUNK_COPY_BUDGET_NANOS = TimeUnit.MILLISECONDS.toNanos(1);
+    private static final long DEFAULT_AUTO_SCAN_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(10);
+    private static final int AUTO_SCAN_CHUNKS_PER_FRAME = 2;
 
     private final Minecraft mc = Minecraft.getMinecraft();
     private final ProfilerSingleThreadExecutor executor = new ProfilerSingleThreadExecutor(10000);
@@ -42,7 +44,10 @@ public class BlockEventsProcessor {
     // VintageFix/E2E has finished populating its block data. Keep newly
     // discovered chunks pending for a few frame-end passes before taking
     // the snapshot, so we do not permanently cache an empty/partial chunk.
-    private final Map<ChunkPos, Integer> pendingChunks = new HashMap<>();
+    private final ArrayDeque<ChunkPos> autoScanQueue = new ArrayDeque<>();
+    private long autoScanIntervalNanos = DEFAULT_AUTO_SCAN_INTERVAL_NANOS;
+    private long nextAutoScanNanos = 0;
+    private boolean autoScanEnabled = true;
 
     private BlockEventsProcessor() {
         Events.RawChunkLoaded.add(this::onChunkLoaded);
@@ -119,10 +124,10 @@ public class BlockEventsProcessor {
 
     // main thread
     private void onChunkUnloaded(Chunk chunk) {
-        // Removing a chunk from the lifecycle tracker is enough. ESP positions
-        // are intentionally retained until the chunk is loaded and refreshed.
         capturedChunks.remove(chunk.getPos());
-        pendingChunks.remove(chunk.getPos());
+        if (!BlockFinder.instance.isPersistUnloadedChunks()) {
+            BlockFinder.instance.removeChunkPositions(chunk.getPos());
+        }
     }
 
     // main thread
@@ -140,6 +145,7 @@ public class BlockEventsProcessor {
         }
 
         processCapturedChunks();
+        processAutoScan();
         processChunkCopyQueue();
     }
 
@@ -159,7 +165,7 @@ public class BlockEventsProcessor {
             executor.execute(() -> Events.ChunkUnloaded.trigger(pos));
         }
         capturedChunks.clear();
-        pendingChunks.clear();
+        autoScanQueue.clear();
     }
 
     // main thread
@@ -169,52 +175,78 @@ public class BlockEventsProcessor {
 
     // main thread
     private void processCapturedChunks() {
-        /*
-         * Do not use a tri-state "captured" map here. The reliable source of
-         * truth on VintageFix/E2E is getLoadedChunk(), polled from the client
-         * thread. We compare the complete currently-loaded set with the set
-         * seen on the previous frame:
-         *
-         *   absent -> present : newly loaded, scan it
-         *   present -> absent : unloaded, keep ESP positions but forget it
-         *   present -> present : already scanned, do nothing
-         *
-         * This also works when RawChunkLoaded/RawChunkUnloaded callbacks are
-         * missing or arrive in an unexpected order.
-         */
         ChunkPos[] positions = getLoadedChunksPosition();
         Set<ChunkPos> currentlyLoaded = new HashSet<>(Arrays.asList(positions));
 
-        for (ChunkPos pos : currentlyLoaded) {
-            if (capturedChunks.contains(pos)) {
-                continue;
+        if (!BlockFinder.instance.isPersistUnloadedChunks()) {
+            Set<ChunkPos> unloaded = new HashSet<>(capturedChunks);
+            unloaded.removeAll(currentlyLoaded);
+            for (ChunkPos pos : unloaded) {
+                BlockFinder.instance.removeChunkPositions(pos);
             }
+        }
 
-            Integer delay = pendingChunks.get(pos);
-            if (delay == null) {
-                // Give the client a few frame-end passes to finish filling the
-                // chunk before we snapshot it.
-                pendingChunks.put(pos, 5);
-                continue;
-            }
+        capturedChunks.retainAll(currentlyLoaded);
+        capturedChunks.addAll(currentlyLoaded);
+    }
 
-            if (delay > 0) {
-                pendingChunks.put(pos, delay - 1);
-                continue;
-            }
+    // main thread
+    private void processAutoScan() {
+        if (!autoScanEnabled) {
+            return;
+        }
 
+        long now = System.nanoTime();
+        if (autoScanQueue.isEmpty() && now >= nextAutoScanNanos) {
+            ChunkPos[] positions = getLoadedChunksPosition();
+            autoScanQueue.addAll(Arrays.asList(positions));
+            nextAutoScanNanos = now + autoScanIntervalNanos;
+        }
+
+        int processed = 0;
+        while (processed < AUTO_SCAN_CHUNKS_PER_FRAME && !autoScanQueue.isEmpty()) {
+            ChunkPos pos = autoScanQueue.pollFirst();
             Chunk chunk = mc.world.getChunkProvider().getLoadedChunk(pos.x, pos.z);
             if (chunk != null) {
                 SnapshotChunk snapshot = SnapshotChunk.from(chunk);
                 executor.execute(() -> BlockFinder.instance.refreshChunk(snapshot));
-                capturedChunks.add(pos);
             }
-
-            pendingChunks.remove(pos);
+            processed++;
         }
+    }
 
-        capturedChunks.retainAll(currentlyLoaded);
-        pendingChunks.keySet().retainAll(currentlyLoaded);
+    public void setAutoScanEnabled(boolean enabled) {
+        autoScanEnabled = enabled;
+        if (enabled) {
+            nextAutoScanNanos = 0;
+        } else {
+            autoScanQueue.clear();
+        }
+    }
+
+    public boolean isAutoScanEnabled() {
+        return autoScanEnabled;
+    }
+
+    public void setAutoScanIntervalSeconds(double seconds) {
+        autoScanIntervalNanos = (long) (seconds * 1_000_000_000L);
+        nextAutoScanNanos = 0;
+    }
+
+    public double getAutoScanIntervalSeconds() {
+        return autoScanIntervalNanos / 1_000_000_000.0;
+    }
+
+    public void removeUnloadedChunkPositions() {
+        if (mc.world == null || mc.player == null) {
+            return;
+        }
+        Set<ChunkPos> loaded = new HashSet<>(Arrays.asList(getLoadedChunksPosition()));
+        Set<ChunkPos> known = new HashSet<>(capturedChunks);
+        known.removeAll(loaded);
+        for (ChunkPos pos : known) {
+            BlockFinder.instance.removeChunkPositions(pos);
+        }
     }
 
     // main thread
