@@ -49,6 +49,9 @@ public class BlockEventsProcessor {
         Events.RawChunkUnloaded.add(this::onChunkUnloaded);
         Events.RawBlockUpdated.add(this::onBlockUpdated);
         Events.MainLoopFrameEnd.add(this::onFrameEnd);
+        // Use the regular in-game tick for the timer; frame-end hooks can be
+        // skipped or behave differently with client-loop optimization mods.
+        Events.InGameTickEnd.add(this::processAutoScan);
         Events.LevelUnload.add(this::onLevelUnload);
         Events.Close.add(this::onClose);
     }
@@ -140,7 +143,6 @@ public class BlockEventsProcessor {
         }
 
         processCapturedChunks();
-        processAutoScan();
         processChunkCopyQueue();
     }
 
