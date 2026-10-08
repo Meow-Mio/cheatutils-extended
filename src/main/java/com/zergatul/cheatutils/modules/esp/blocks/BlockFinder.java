@@ -21,6 +21,10 @@ public class BlockFinder {
 
     public final Map<BlockEspConfig, Set<BlockPos>> blocks = new ConcurrentHashMap<>();
 
+    // Unloaded chunk positions are discarded by default. This can be enabled
+    // when the user explicitly wants ESP results to persist outside loaded chunks.
+    private volatile boolean persistUnloadedChunks = false;
+
     private BlockFinder() {
         Events.ChunkLoaded.add(this::onChunkLoaded);
         Events.ChunkUnloaded.add(this::onChunkUnloaded);
@@ -58,23 +62,38 @@ public class BlockFinder {
         BlockEventsProcessor.instance.requestFullScan();
     }
 
+    public boolean isPersistUnloadedChunks() {
+        return persistUnloadedChunks;
+    }
+
+    public void setPersistUnloadedChunks(boolean value) {
+        persistUnloadedChunks = value;
+        if (!value) {
+            BlockEventsProcessor.instance.removeUnloadedChunkPositions();
+        }
+    }
+
+    public void removeChunkPositions(ChunkPos pos) {
+        for (Set<BlockPos> set : blocks.values()) {
+            set.removeIf(p -> (p.getX() >> 4) == pos.x && (p.getZ() >> 4) == pos.z);
+        }
+    }
+
     private void onChunkLoaded(SnapshotChunk chunk) {
         scanChunkForAllBlocks(chunk);
     }
 
     private void onChunkUnloaded(ChunkPos pos) {
-        // Do not discard discovered positions when a client chunk unloads.
-        // The chunk is rescanned and its positions are refreshed when it
-        // becomes loaded again.
+        if (!persistUnloadedChunks) {
+            removeChunkPositions(pos);
+        }
     }
 
     public void refreshChunk(SnapshotChunk chunk) {
         final int cx = chunk.getPos().x;
         final int cz = chunk.getPos().z;
 
-        for (Set<BlockPos> set : blocks.values()) {
-            set.removeIf(p -> (p.getX() >> 4) == cx && (p.getZ() >> 4) == cz);
-        }
+        removeChunkPositions(chunk.getPos());
 
         // Scan each currently active config explicitly. This is the same
         // path used by requestScan(config), and avoids relying on the shared
