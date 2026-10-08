@@ -220,6 +220,10 @@ public class BlockEspCommand extends CommandBase {
             sendChat(sender, "Auto-scan=" + BlockEventsProcessor.instance.isAutoScanEnabled()
                     + " interval=" + BlockEventsProcessor.instance.getAutoScanIntervalSeconds() + "s"
                     + " | persist unloaded=" + BlockFinder.instance.isPersistUnloadedChunks());
+            sendChat(sender, "Auto-scan runs=" + BlockEventsProcessor.instance.getAutoScanRunCount()
+                    + " | last run=" + (BlockEventsProcessor.instance.getLastAutoScanMillis() == 0 ? "never"
+                    : new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date(BlockEventsProcessor.instance.getLastAutoScanMillis())))
+                    + " | loaded chunks at last run=" + BlockEventsProcessor.instance.getLastAutoScanChunkCount());
             return;
         }
 
