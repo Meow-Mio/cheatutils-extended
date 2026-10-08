@@ -195,11 +195,11 @@ public class BlockEventsProcessor {
             return;
         }
 
-        // Auto-scan is intentionally just the existing /cu_blockesp rescan
-        // operation on a timer. This keeps manual rescan and auto-scan on the
-        // exact same code path, which is the path proven to work reliably on
-        // E2E/VintageFix.
-        BlockFinder.instance.rescan();
+        // Literally execute the same command path as:
+        //     /cu_blockesp rescan
+        // Do not duplicate or approximate the rescan implementation here.
+        // The command itself is the known-good operation.
+        new BlockEspCommand().execute(null, mc.player, new String[] { "rescan" });
         nextAutoScanNanos = now + autoScanIntervalNanos;
     }
 
